@@ -1,7 +1,7 @@
 {
   "name": "Auction",
   "author": "Bot Party",
-  "version": "2.0",
+  "version": "2.1",
   "description": "A game mode: everyone gets coins and a level. Bid for traps in the auction room, trap your level, race through the others'.",
   "icon": "icon.png",
   "modes": {

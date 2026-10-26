@@ -36,6 +36,8 @@ var bid_at := {}            # slot -> msec of their last bid (a little bounce)
 var extended_at := -100000  # msec of the last "+5 s"
 var round_no := 1
 var won := {}               # slot -> item ids bought this round
+var bid_time := 10.0        # seconds on the clock for each item (rule)
+var level_names := {}       # slot -> the name of their level
 
 var _client := false
 var _held := {}             # slot -> [action, seconds held, next repeat]
@@ -65,6 +67,11 @@ func _ready() -> void:
 		a.won = {}
 	lots = a.lots
 	lot = int(a.lot)
+	bid_time = float(Party.rule("auction_time"))
+	for s in slots:
+		var level: Dictionary = a.levels.get(str(s), {})
+		if not level.is_empty():
+			level_names[str(s)] = Mode.level_name(level)
 	buyers = a.get("buyers", [])
 	won = a.won
 	Party.save()
@@ -98,7 +105,7 @@ func _start_lot() -> void:
 	stage_time = 0.0
 	price = 0
 	leader = 0
-	time_left = float(Party.rule("auction_time"))
+	time_left = bid_time
 	for s in slots:
 		offers[s] = mini(1, _coins(s)) if _coins(s) > 0 else 0
 	_bots.clear()
@@ -249,31 +256,36 @@ func net_state() -> Dictionary:
 	var ages := {}
 	var now := Time.get_ticks_msec()
 	for s in bid_at:
-		ages[s] = now - int(bid_at[s])
+		if now - int(bid_at[s]) < 1000:
+			ages[s] = snappedi(now - int(bid_at[s]), 100)  # (only fresh bids: they bounce)
 	return {"s": slots, "l": lots, "i": lot, "p": price, "ld": leader, "t": snappedf(time_left, 0.1),
-		"o": offers, "st": stage, "b": buyers, "ba": ages, "ex": now - extended_at, "r": round_no, "w": won,
-		"c": Party.session.get("scores", {})}
+		"o": offers, "st": stage, "b": buyers, "ba": ages, "ex": mini(now - extended_at, 5000), "r": round_no, "w": won,
+		"c": Party.session.get("scores", {}), "bt": bid_time, "lv": level_names}
 
 
+## (Only what changed comes: the host sends each key when it changes.)
 func net_apply(d: Dictionary) -> void:
 	var now := Time.get_ticks_msec()
-	if d.get("st", "") != stage or int(d.get("i", -1)) != lot:
+	if (d.has("st") and str(d.st) != stage) or (d.has("i") and int(d.i) != lot):
 		stage_time = 0.0
-	slots = d.get("s", [])
-	lots = d.get("l", [])
-	lot = int(d.get("i", 0))
-	price = int(d.get("p", 0))
-	leader = int(d.get("ld", 0))
-	time_left = float(d.get("t", 0.0))
-	offers = d.get("o", {})
-	stage = str(d.get("st", "bid"))
-	buyers = d.get("b", [])
-	for s in d.get("ba", {}):
-		bid_at[int(s)] = now - int(d.ba[s])
-	extended_at = now - int(d.get("ex", 100000))
-	round_no = int(d.get("r", 1))
-	won = d.get("w", {})
-	Party.session.scores = d.get("c", {})
+	if d.has("s"): slots = d.s
+	if d.has("l"): lots = d.l
+	if d.has("i"): lot = int(d.i)
+	if d.has("p"): price = int(d.p)
+	if d.has("ld"): leader = int(d.ld)
+	if d.has("t"): time_left = float(d.t)
+	if d.has("o"): offers = d.o
+	if d.has("st"): stage = str(d.st)
+	if d.has("b"): buyers = d.b
+	if d.has("ba"):
+		for s in d.ba:
+			bid_at[int(s)] = now - int(d.ba[s])
+	if d.has("ex"): extended_at = now - int(d.ex)
+	if d.has("r"): round_no = int(d.r)
+	if d.has("w"): won = d.w
+	if d.has("c"): Party.session.scores = d.c
+	if d.has("bt"): bid_time = float(d.bt)
+	if d.has("lv"): level_names = d.lv
 
 
 # --- Drawing ------------------------------------------------------------------------------
@@ -404,7 +416,7 @@ func _draw_board(v: Vector2, font: Font, thin: Font) -> void:
 		_text(thin, Vector2(cx, r.position.y + 150), "No bids yet", 24, UiTheme.MUTED, true)
 	# The clock.
 	var c := Vector2(cx, r.end.y - 72)
-	var total := maxf(float(Party.rule("auction_time")), time_left)
+	var total := maxf(bid_time, time_left)
 	var frac := clampf(time_left / total, 0.0, 1.0) if stage == "bid" else (1.0 if stage == "intro" else 0.0)
 	var hurry := time_left < EXTEND_UNDER and stage == "bid"
 	var ring := UiTheme.RED if hurry else UiTheme.ACCENT
@@ -502,9 +514,8 @@ func _draw_panel(slot: int, v: Vector2, font: Font, thin: Font) -> void:
 			break
 		if tex:
 			draw_texture_rect(tex, cell, false)
-	var level: Dictionary = Party.session.get("auction", {}).get("levels", {}).get(str(slot), {})
-	if bought.is_empty() and not level.is_empty():
-		_text(thin, Vector2(r.position.x + 10, r.end.y - 14), "Level: " + Mode.level_name(level), 18, UiTheme.MUTED)
+	if bought.is_empty() and level_names.has(str(slot)):
+		_text(thin, Vector2(r.position.x + 10, r.end.y - 14), "Level: " + str(level_names[str(slot)]), 18, UiTheme.MUTED)
 	# "Bid!" floating up.
 	var age := Time.get_ticks_msec() - int(bid_at.get(slot, -100000))
 	if age < 900:
