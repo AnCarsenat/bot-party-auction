@@ -1,0 +1,71 @@
+# Makes the mod pack (auction.pck) with the game's own packer.
+#  - every pushed tag v* (git tag v1.1 && git push origin v1.1): a release with auction.pck,
+#    which is what Mods > Explore in Bot Party downloads.
+#  - by hand (Actions > Mod pack > Run workflow): the pack as a build artifact.
+# Raise "version" in mod.json with every release: online games check it.
+name: Mod pack
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # to publish releases
+
+env:
+  MOD_ID: "auction"
+  GAME_REPO: "AnCarsenat/bot-party"
+  GODOT_VERSION: "4.7.2"
+  GODOT_STATUS: "stable"
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the game
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GAME_REPO }}
+          path: game
+
+      - name: Get this mod (into the game's mods folder)
+        uses: actions/checkout@v4
+        with:
+          path: game/mods/${{ env.MOD_ID }}
+
+      - name: Cache Godot
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-editor
+
+      - name: Get Godot
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          V="${GODOT_VERSION}-${GODOT_STATUS}"
+          mkdir -p ~/godot
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/$V/Godot_v${V}_linux.x86_64.zip"
+          unzip -q godot.zip -d ~/godot && mv ~/godot/Godot_v${V}_linux.x86_64 ~/godot/godot && rm godot.zip
+
+      - name: Pack
+        run: |
+          ~/godot/godot --headless --import --path game || true
+          ~/godot/godot --headless --path game --script res://editor/pack_mod.gd -- "res://mods/$MOD_ID" "$GITHUB_WORKSPACE/$MOD_ID.pck"
+          test -s "$MOD_ID.pck" && ls -la "$MOD_ID.pck"
+
+      - name: Keep the pack (Actions > this run > Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.MOD_ID }}-pck
+          path: ${{ env.MOD_ID }}.pck
+
+      - name: Release for the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$MOD_ID.pck" -R "$GITHUB_REPOSITORY" \
+            --title "Auction $GITHUB_REF_NAME" \
+            --notes "Put $MOD_ID.pck in Bot Party's mods folder, or install it from Mods > Explore in the game."
