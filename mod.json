@@ -1,13 +1,13 @@
 {
   "name": "Auction",
   "author": "Bot Party",
-  "version": "1.1",
-  "description": "A game mode: the cards are sold one at a time, for coins (Party > Rules > Mode).",
+  "version": "2.0",
+  "description": "A game mode: everyone gets coins and a level. Bid for traps in the auction room, trap your level, race through the others'.",
   "icon": "icon.png",
   "modes": {
     "auction": {
       "name": "Auction",
-      "description": "The cards are sold one at a time: jump to bid your coins (5 more each round). Unsold cards go to whoever has none.",
+      "description": "Everyone gets coins and a level. Bid for traps in the auction room, trap your level, then race through the others'. Reaching a flag, or every robot lost on your level, pays.",
       "script": "auction.gd"
     }
   }
