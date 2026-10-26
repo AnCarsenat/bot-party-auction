@@ -5,6 +5,8 @@ mode: instead of grabbing cards first come, first served, the cards are sold
 one at a time. Everyone gets 5 coins a round (30 at most); jump to bid one coin
 more. Cards nobody buys go to whoever has none.
 
+![icon](icon.png)
+
 ## Install
 
 In the game: **Mods → Explore → Auction**. Or download `auction.pck` from the

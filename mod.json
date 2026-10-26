@@ -1,8 +1,9 @@
 {
   "name": "Auction",
   "author": "Bot Party",
-  "version": "1.0",
+  "version": "1.1",
   "description": "A game mode: the cards are sold one at a time, for coins (Party > Rules > Mode).",
+  "icon": "icon.png",
   "modes": {
     "auction": {
       "name": "Auction",
